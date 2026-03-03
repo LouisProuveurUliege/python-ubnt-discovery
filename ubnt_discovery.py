@@ -6,6 +6,7 @@
 
 
 from scapy.all import *
+import time
 
 # UBNT field types
 UBNT_MAC         = '01'     # Hardware Address
@@ -182,6 +183,9 @@ def ubntDiscovery():
     # listen for packets matching the filter
     sniffer = AsyncSniffer(filter=bpf_filter, timeout=DISCOVERY_TIMEOUT)
     sniffer.start()
+    
+    # brief sleep to ensure sniffer thread is fully initialized before sending;
+    time.sleep(0.05)
 
     # transmit packets
     sendp(ubnt_broadcast_packet, verbose=0)
