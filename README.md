@@ -1,11 +1,27 @@
 # python-ubnt-discovery
 Command line python script to discover Ubiquiti devices on the local LAN segment.
 
+## Run the script
+
 **Requirements :** the script uses the python scapy library to craft and send the raw packet. You can install it with:
 
 ```bash
 pip install scapy
 ```
+
+The script must run as root to be able to use the scapy library.
+
+**Alternatively**: To avoid issues with root permissions and system-level package management, the script can run within a docker container. You can build and run the image with
+
+```bash
+docker build -t ubnt-discovery .
+docker run -it --rm --network host ubnt-discovery:latest
+```
+
+The `--network host` flag allows the container to run using the network namespace of the host. It is usually not recommended to do so, but here we need the container to be on the same broadcast domain as the host. 
+
+**Note**: due to WSL running in its own subnetwork, the docker method might not work on Windows.
+
 ## Authorship
 
 This script and all work in this folder were originally done by nitefood and published on [github](https://github.com/nitefood/python-ubnt-discovery).

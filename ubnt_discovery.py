@@ -1,5 +1,3 @@
-#!/home/louis-prouveur/miniconda3/bin/python3
-
 # This script was originally created by nitefood
 # and available on this GitHub repository:
 # https://github.com/nitefood/python-ubnt-discovery
@@ -205,9 +203,6 @@ def ubntDiscovery():
             continue
         
         payload = pkt[Raw].load
-        
-        # debug
-        print(payload)
 
         # Check for a valid UBNT discovery broadcast (first byte should be 0x02)
         if payload[0:1].hex() == UBNT_BROADCAST:
@@ -258,7 +253,7 @@ print("\nDiscovery in progress...")
 DeviceList = ubntDiscovery()
 found_radios = len(DeviceList)
 if found_radios:
-    print("\nDiscovered " + str(found_radios) + " radio(s):")
+    print("\nDiscovered " + str(found_radios) + " device(s):")
     for Device in DeviceList:
         print(Device)
 else:
