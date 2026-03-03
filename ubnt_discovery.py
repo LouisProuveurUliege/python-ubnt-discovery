@@ -25,6 +25,7 @@ UBNT_MODEL       = '15'     # String
 UBNT_MIN_CV      = '16'     # Minimum Controller Version
 UBNT_ISDEFAULT   = '17'     # Bool
 UBNT_VERSION     = '1b'     # String
+UBNT_UUID        = '20'     # String
 # Other field types will be stored raw
 
 # UBNT discovery packet payload (Legacy from original code)
@@ -136,6 +137,9 @@ def encodeField(Device, type, data):
         
     elif type == UBNT_VERSION:
         Device['version'] = data.decode()
+        
+    elif type == UBNT_UUID:
+        Device['uuid'] = data.decode()
         
     else:
         Device['unknow_fields'].append({
