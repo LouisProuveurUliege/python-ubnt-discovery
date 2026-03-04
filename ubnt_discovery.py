@@ -211,24 +211,22 @@ def ubntDiscovery():
         # Check for a valid UBNT discovery broadcast (first byte should be 0x02)
         if payload[0:1].hex() == UBNT_BROADCAST:
             pointer = 2
+            length = int(payload[pointer:pointer+2].hex(), 16)
             
         elif payload[0:3].hex() == UBNT_REPLY_SIGNATURE:
-            pointer = 4
+            pointer = 3
+            length = payload[pointer]
             
         else:
             print("Invalid Packet")
             continue            # Not a valid UBNT discovery reply, skip to next received packet
         
+        pointer = 4
+        
         # At this point, this is an expected packet. 
         Device = {}                     # Init the device
         Device['unknow_fields'] = []    # Initialize 'unknow fields'
-        
-        pointer = 2
-        
-        # Get total payload length in bytes
-        length = int(payload[pointer:pointer+2].hex(), 16)
 
-        pointer += 2
         remaining_bytes = length
 
 
