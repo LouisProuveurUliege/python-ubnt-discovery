@@ -40,6 +40,10 @@ UBNT_BROADCAST = '02'
 # When Factory-reset, sends packet every 10 seconds
 DISCOVERY_TIMEOUT = 10
 
+class InvalidDiscoveryPacket(Exception):
+    """Discovery packet does not match the expected \
+        magic header"""
+
 
 def formatMAC(mac):
     
@@ -52,102 +56,152 @@ def formatMAC(mac):
     
     mac_str = ""
     for mac_byte in mac:
-        mac_str += hex(mac_byte)[2:] + ":"
+        mac_str += hex(mac_byte)[2:].zfill(2) + ":"
         
     mac_str = mac_str[:len(mac_str)-1]
     
     return mac_str
 
 def encodeField(Device, type, data):
-    
     """Encodes the field's **data** according to the fields **type**
     and stores it within the **Device** data structure      
 
     Returns:
         dict: a dictionnary containing key-value pairs, with field types as keys
-    """    
-    
+    """
+
     if type == UBNT_MAC:
         Device['mac'] = formatMAC(data)
-    
+
     elif type == UBNT_MAC_AND_IP:
         mac = data[:6]
-        IP = data[6:]  
-            
+        IP = data[6:]
+
         IP_str = ""
         for IP_byte in IP:
             IP_str += str(IP_byte) + "."
-        
+
         IP_str = IP_str[:len(IP_str)-1]
-        
+
         data = {
             "mac": formatMAC(mac),
             "IP": IP_str
         }
-        
+
         if 'ifs' in Device:
             Device['ifs'].append(data)
         else:
             Device['ifs'] = [data]
-    
+
     elif type == UBNT_FIRMWARE:
         Device['firmware'] = data.decode()
-        
+
     elif type == UBNT_USERNAME:
         Device['user'] = data.decode()
-    
+
     elif type == UBNT_SALT:
         Device['salt'] = data.hex()
-        
+
     elif type == UBNT_CHALLENGE:
         Device['challenge'] = data.hex()
-        
+
     elif type == UBNT_UPTIME:
         Device['uptime'] = int(data.hex(), 16)
-        
+
     elif type == UBNT_HOSTNAME:
         Device['hostname'] = data.decode()
-    
+
     elif type == UBNT_PLATFORM:
         Device['platform'] = data.decode()
-        
+
     elif type == UBNT_ESSID:
         Device['essid'] = data.decode()
-        
+
     elif type == UBNT_WMODE:
         Device['wmode'] = int(data.hex(), 16)
-        
+
     elif type == UBNT_SEQUENCE:
         Device['sequence'] = int(data.hex(), 16)
-        
+
     elif type == UBNT_SERIAL:
         Device['serial'] = data.hex()
-        
+
     elif type == UBNT_MODEL_FULL:
-        Device['model_full'] = data
-        
+        Device['model_full'] = data.decode()
+
     elif type == UBNT_MODEL:
         Device['model'] = data.decode()
-        
+
     elif type == UBNT_MIN_CV:
         Device['min_controller_version'] = data.decode()
-    
+
     elif type == UBNT_ISDEFAULT:
         Device['default'] = bool(int(data.hex(), 16))
-        
+
     elif type == UBNT_VERSION:
         Device['version'] = data.decode()
-        
+
     elif type == UBNT_UUID:
         Device['uuid'] = data.decode()
-        
+
     else:
         Device['unknow_fields'].append({
             'type': type,
             'raw_data': data
         })
-        
+
     return Device
+
+def decode_packet(payload: bytes) -> dict:
+    """Decodes a UniFi discovery response packet based on \
+        [The Unofficial Guide to UniFi](https://jrjparks.github.io/unofficial-unifi-guide/protocols/discovery.html).
+
+    Args:
+        payload (bytes): The payload of the UDP packet as an array of bytes
+
+    Returns:
+        Device (dict): A python dict containing information about the device
+    """
+
+    # Check for a valid UBNT discovery broadcast (first byte should be 0x02)
+    if payload[0:1].hex() == UBNT_BROADCAST:
+        pointer = 2
+        length = int(payload[pointer:pointer+2].hex(), 16)
+
+    # Else, check if packet is a valid discovery reply
+    elif payload[0:3].hex() == UBNT_REPLY_SIGNATURE:
+        pointer = 3
+        length = payload[pointer]
+
+    else:
+        raise InvalidDiscoveryPacket(payload)
+
+    pointer = 4
+
+    Device = {}                     # Init the device
+    Device['unknow_fields'] = []    # Initialize 'unknow fields'
+
+    remaining_bytes = length
+
+    while remaining_bytes > 0:
+        fieldType = payload[pointer:pointer+1].hex()
+        pointer += 1
+        remaining_bytes -= 1
+        # Data length is stored as a 16-bit word
+        fieldLen = payload[pointer:pointer+2].hex()
+        fieldLen = int(fieldLen, 16)
+        pointer += 2
+        remaining_bytes -= 2
+        fieldData = payload[pointer:pointer+fieldLen]
+
+        # Encode the field and add it to the device
+        Device = encodeField(Device, fieldType, fieldData)
+
+        pointer += fieldLen
+        remaining_bytes -= fieldLen
+
+    return Device
+
 
 
 def ubntDiscovery():
@@ -208,43 +262,7 @@ def ubntDiscovery():
         
         payload = pkt[Raw].load
 
-        # Check for a valid UBNT discovery broadcast (first byte should be 0x02)
-        if payload[0:1].hex() == UBNT_BROADCAST:
-            pointer = 2
-            length = int(payload[pointer:pointer+2].hex(), 16)
-            
-        elif payload[0:3].hex() == UBNT_REPLY_SIGNATURE:
-            pointer = 3
-            length = payload[pointer]
-            
-        else:
-            print("Invalid Packet")
-            continue            # Not a valid UBNT discovery reply, skip to next received packet
-        
-        pointer = 4
-        
-        # At this point, this is an expected packet. 
-        Device = {}                     # Init the device
-        Device['unknow_fields'] = []    # Initialize 'unknow fields'
-
-        remaining_bytes = length
-
-
-        while remaining_bytes > 0:
-            fieldType = payload[pointer:pointer+1].hex()
-            pointer += 1
-            remaining_bytes -= 1
-            fieldLen = payload[pointer:pointer+2].hex() # Data length is stored as a 16-bit word
-            fieldLen = int( fieldLen, 16 )
-            pointer += 2
-            remaining_bytes -= 2
-            fieldData = payload[pointer:pointer+fieldLen]
-            
-            # Encode the field and add it to the device
-            Device = encodeField(Device, fieldType, fieldData)
-            
-            pointer += fieldLen
-            remaining_bytes -= fieldLen
+        Device = decode_packet(payload)
 
         DeviceList.append(Device)
 
